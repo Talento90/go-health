@@ -2,6 +2,7 @@ package health
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"runtime"
 	"sync"
@@ -16,6 +17,7 @@ type Status struct {
 	MemoryAllocated uint64            `json:"memory_allocated"`
 	IsShuttingDown  bool              `json:"is_shutting_down"`
 	HealthCheckers  map[string]string `json:"health_checkers"`
+	Metadata        map[string]string `json:"metadata"`
 }
 
 // Checker checks if the health of a service (database, external service)
@@ -33,6 +35,11 @@ type Health interface {
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
 	// Shutdown set isShutdown flag meaning the service is shutting down
 	Shutdown()
+}
+
+// Options of Health instance
+type Options struct {
+	checkersTimeout int
 }
 
 // New returns a new Health
@@ -69,6 +76,47 @@ func (h *health) Shutdown() {
 	h.isShutdown = true
 }
 
+type checkerResult struct {
+	name string
+	err  error
+}
+
+func checkersAsync(checkers map[string]Checker) map[string]string {
+	nCheckers := len(checkers)
+	ch := make(chan checkerResult, len(checkers))
+	results := map[string]string{}
+
+	if len(checkers) == 0 {
+		return results
+	}
+
+	for n, c := range checkers {
+		go func(name string, c Checker) {
+			ch <- checkerResult{name: name, err: c.Check()}
+		}(n, c)
+	}
+
+	for {
+		select {
+		case r := <-ch:
+			if r.err != nil {
+				results[r.name] = r.err.Error()
+			} else {
+				results[r.name] = "OK"
+			}
+
+			nCheckers = nCheckers - 1
+
+			if nCheckers >= 0 {
+				close(ch)
+				return results
+			}
+		case <-time.After(1000 * time.Millisecond):
+			fmt.Printf(".")
+		}
+	}
+}
+
 // GetStatus method returns the current application health status
 func (h *health) GetStatus() *Status {
 	h.mutex.Lock()
@@ -77,17 +125,7 @@ func (h *health) GetStatus() *Status {
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 
-	checkers := map[string]string{}
-
-	for k, c := range h.checkers {
-		err := c.Check()
-
-		if err != nil {
-			checkers[k] = err.Error()
-		} else {
-			checkers[k] = "OK"
-		}
-	}
+	checkers := checkersAsync(h.checkers)
 
 	return &Status{
 		Service:         h.name,
