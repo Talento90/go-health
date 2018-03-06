@@ -18,7 +18,7 @@ func (c *checker) Check() error {
 }
 
 func TestGetStatus(t *testing.T) {
-	h := New("service_test")
+	h := New("service_test", Options{})
 	s := h.GetStatus()
 
 	if s.Service != "service_test" {
@@ -27,7 +27,7 @@ func TestGetStatus(t *testing.T) {
 }
 
 func TestCheckers(t *testing.T) {
-	h := New("service_test")
+	h := New("service_test", Options{})
 	h.RegisterChecker("checker1", &checker{})
 
 	s := h.GetStatus()
@@ -38,7 +38,7 @@ func TestCheckers(t *testing.T) {
 }
 
 func TestCheckersError(t *testing.T) {
-	h := New("service_test")
+	h := New("service_test", Options{})
 	h.RegisterChecker("checker1", &checker{err: errors.New("Service unreachable")})
 
 	s := h.GetStatus()
@@ -49,7 +49,7 @@ func TestCheckersError(t *testing.T) {
 }
 
 func TestServeHTTP(t *testing.T) {
-	h := New("service_test")
+	h := New("service_test", Options{})
 
 	req, err := http.NewRequest("GET", "localhost/health", nil)
 
@@ -85,7 +85,7 @@ func TestServeHTTP(t *testing.T) {
 }
 
 func TestShutdown(t *testing.T) {
-	h := New("service_test")
+	h := New("service_test", Options{})
 
 	h.Shutdown()
 

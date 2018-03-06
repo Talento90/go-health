@@ -2,7 +2,6 @@ package health
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"runtime"
 	"sync"
@@ -39,26 +38,23 @@ type Health interface {
 
 // Options of Health instance
 type Options struct {
-	checkersTimeout int
+	checkersTimeout time.Duration
 }
 
 // New returns a new Health
-func New(name string) Health {
+func New(name string, opt Options) Health {
+	if opt.checkersTimeout == 0 {
+		opt.checkersTimeout = time.Second
+	}
+
 	return &health{
 		name:       name,
 		mutex:      &sync.Mutex{},
 		startTime:  time.Now(),
 		checkers:   map[string]Checker{},
 		isShutdown: false,
+		options:    opt,
 	}
-}
-
-type health struct {
-	mutex      *sync.Mutex
-	name       string
-	isShutdown bool
-	startTime  time.Time
-	checkers   map[string]Checker
 }
 
 // RegisterChecker register an external dependencies health
@@ -69,6 +65,7 @@ func (h *health) RegisterChecker(name string, check Checker) {
 	h.checkers[name] = check
 }
 
+// Shutdown the health monitor
 func (h *health) Shutdown() {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
@@ -76,21 +73,65 @@ func (h *health) Shutdown() {
 	h.isShutdown = true
 }
 
-type checkerResult struct {
-	name string
-	err  error
+// GetStatus method returns the current application health status
+func (h *health) GetStatus() *Status {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
+
+	results := h.checkersAsync()
+
+	return &Status{
+		Service:         h.name,
+		Uptime:          time.Since(h.startTime).String(),
+		StartTime:       h.startTime.Format(time.RFC3339),
+		MemoryAllocated: mem.Alloc,
+		IsShuttingDown:  h.isShutdown,
+		HealthCheckers:  results,
+	}
 }
 
-func checkersAsync(checkers map[string]Checker) map[string]string {
-	nCheckers := len(checkers)
-	ch := make(chan checkerResult, len(checkers))
+// ServeHTTP that returns the health status
+func (h *health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	code := http.StatusOK
+	status := h.GetStatus()
+	bytes, _ := json.Marshal(status)
+
+	if h.isShutdown {
+		code = http.StatusServiceUnavailable
+	}
+
+	w.WriteHeader(code)
+	w.Write(bytes)
+}
+
+type health struct {
+	mutex      *sync.Mutex
+	name       string
+	isShutdown bool
+	startTime  time.Time
+	checkers   map[string]Checker
+	options    Options
+}
+
+func (h *health) checkersAsync() map[string]string {
+	nCheckers := len(h.checkers)
 	results := map[string]string{}
 
-	if len(checkers) == 0 {
+	if nCheckers == 0 {
 		return results
 	}
 
-	for n, c := range checkers {
+	type checkerResult struct {
+		name string
+		err  error
+	}
+
+	ch := make(chan checkerResult, len(h.checkers))
+
+	for n, c := range h.checkers {
 		go func(name string, c Checker) {
 			ch <- checkerResult{name: name, err: c.Check()}
 		}(n, c)
@@ -107,46 +148,19 @@ func checkersAsync(checkers map[string]Checker) map[string]string {
 
 			nCheckers = nCheckers - 1
 
-			if nCheckers >= 0 {
+			if nCheckers == 0 {
 				close(ch)
 				return results
 			}
-		case <-time.After(1000 * time.Millisecond):
-			fmt.Printf(".")
+		case <-time.After(h.options.checkersTimeout):
+			for k := range h.checkers {
+				if _, ok := results[k]; !ok {
+					results[k] = "NOT OK - Timeout"
+				}
+			}
+
+			close(ch)
+			return results
 		}
 	}
-}
-
-// GetStatus method returns the current application health status
-func (h *health) GetStatus() *Status {
-	h.mutex.Lock()
-	defer h.mutex.Unlock()
-
-	var mem runtime.MemStats
-	runtime.ReadMemStats(&mem)
-
-	checkers := checkersAsync(h.checkers)
-
-	return &Status{
-		Service:         h.name,
-		Uptime:          time.Since(h.startTime).String(),
-		StartTime:       h.startTime.Format(time.RFC3339),
-		MemoryAllocated: mem.Alloc,
-		IsShuttingDown:  h.isShutdown,
-		HealthCheckers:  checkers,
-	}
-}
-
-// ServeHTTP that returns the health status
-func (h *health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	code := http.StatusOK
-	status := h.GetStatus()
-	bytes, _ := json.Marshal(status)
-
-	if h.isShutdown {
-		code = http.StatusServiceUnavailable
-	}
-
-	w.WriteHeader(code)
-	w.Write(bytes)
 }

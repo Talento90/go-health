@@ -1,0 +1,19 @@
+language: go
+
+go:
+  - 1.8
+  - 1.9
+  - "1.10"
+
+env:
+  - "PATH=/home/travis/gopath/bin:$PATH"
+
+go_import_path: github.com/talento90/health
+
+before_script:
+  - make deps
+
+script: make default
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
