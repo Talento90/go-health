@@ -1,5 +1,7 @@
 # health
 
+[![Build Status](https://travis-ci.org/Talento90/health.svg?branch=master)](https://travis-ci.org/Talento90/health) [![Go Report Card](https://goreportcard.com/badge/github.com/Talento90/health)](https://goreportcard.com/report/github.com/Talento90/health)
+
 Health package simplifies the way you add health check to your applications.
 
 ## Supported Features
