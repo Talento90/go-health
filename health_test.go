@@ -39,8 +39,8 @@ func TestCheckers(t *testing.T) {
 
 	s := h.GetStatus()
 
-	if s.HealthCheckers["checker1"].Status != "UP" {
-		t.Errorf("Expect UP and got %s", s.HealthCheckers["checker1"].Status)
+	if s.HealthCheckers["checker1"].Status != "CHECKED" {
+		t.Errorf("Expect CHECKED and got %s", s.HealthCheckers["checker1"].Status)
 	}
 }
 
@@ -56,16 +56,16 @@ func TestCheckersError(t *testing.T) {
 }
 
 func TestMultipleCheckers(t *testing.T) {
-	h := New("service_test", Options{checkersTimeout: 1500})
+	results := []string{"CHECKED", "CHECKED", "TIMEOUT", "CHECKED"}
+
+	h := New("service_test", Options{checkersTimeout: time.Second * 1})
 
 	h.RegisterChecker("checker1", &mockChecker{})
-	h.RegisterChecker("checker2", &mockChecker{sleepTime: 400})
-	h.RegisterChecker("checker3", &mockChecker{sleepTime: 2000})
-	h.RegisterChecker("checker4", &mockChecker{err: errors.New("Error connections to db"), sleepTime: 300})
+	h.RegisterChecker("checker2", &mockChecker{sleepTime: time.Millisecond * 300})
+	h.RegisterChecker("checker3", &mockChecker{sleepTime: time.Second * 5})
+	h.RegisterChecker("checker4", &mockChecker{err: errors.New("Error connections to db"), sleepTime: time.Millisecond * 500})
 
 	s := h.GetStatus()
-
-	results := []string{"UP", "UP", "TIMEOUT", "DOWN"}
 
 	for i, expected := range results {
 		cs := s.HealthCheckers[fmt.Sprintf("checker%d", i+1)].Status

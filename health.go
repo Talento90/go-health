@@ -34,7 +34,8 @@ type Checker interface {
 
 // CheckerResult represents the health of the dependencies
 type CheckerResult struct {
-	// Status (UP/DOWN/TIMEOUT)
+	name string
+	// Status (CHECKED/TIMEOUT)
 	Status string `json:"status"`
 	// Error
 	Error error `json:"error"`
@@ -151,58 +152,49 @@ type health struct {
 	options    Options
 }
 
+func check(ch chan<- CheckerResult, timeout time.Duration, name string, c Checker) {
+	start := time.Now()
+
+	ch1 := make(chan error)
+
+	go func() {
+		ch1 <- c.Check()
+	}()
+
+	select {
+	case r := <-ch1:
+		ch <- CheckerResult{name: name, Status: "CHECKED", Error: r, ResponseTime: time.Since(start)}
+	case <-time.After(timeout):
+		ch <- CheckerResult{name: name, Status: "TIMEOUT", ResponseTime: time.Since(start)}
+	}
+
+}
+
 func (h *health) checkersAsync() map[string]CheckerResult {
-	nCheckers := len(h.checkers)
+	numCheckers := len(h.checkers)
 	results := map[string]CheckerResult{}
 
-	if nCheckers == 0 {
+	if numCheckers == 0 {
 		return results
 	}
 
-	type result struct {
-		name string
-		err  error
-		time time.Time
-	}
-
-	ch := make(chan result, len(h.checkers))
+	ch := make(chan CheckerResult, numCheckers)
 
 	for n, c := range h.checkers {
-		go func(name string, c Checker) {
-			ch <- result{name: name, err: c.Check(), time: time.Now()}
-		}(n, c)
+		go check(ch, h.options.checkersTimeout, n, c)
 	}
 
-	for {
-		select {
-		case r := <-ch:
-			resTime := time.Since(r.time)
-			status := "UP"
+	i := numCheckers
 
-			if r.err != nil {
-				status = "DOWN"
-			}
+	for r := range ch {
+		results[r.name] = r
 
-			results[r.name] = CheckerResult{Status: status, Error: r.err, ResponseTime: resTime}
+		i = i - 1
 
-			nCheckers = nCheckers - 1
-
-			if nCheckers == 0 {
-				close(ch)
-				return results
-			}
-		case <-time.After(h.options.checkersTimeout):
-			for k := range h.checkers {
-				if _, ok := results[k]; !ok {
-					results[k] = CheckerResult{
-						Status:       "TIMEOUT",
-						ResponseTime: h.options.checkersTimeout,
-					}
-				}
-			}
-
+		if i == 0 {
 			close(ch)
-			return results
 		}
 	}
+
+	return results
 }
