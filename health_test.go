@@ -3,18 +3,25 @@ package health
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
-type checker struct {
-	err error
+type mockChecker struct {
+	err       error
+	sleepTime time.Duration
 }
 
-func (c *checker) Check() error {
-	return c.err
+func (mc *mockChecker) Check() error {
+	if mc.sleepTime > 0 {
+		time.Sleep(mc.sleepTime)
+	}
+
+	return mc.err
 }
 
 func TestGetStatus(t *testing.T) {
@@ -28,23 +35,44 @@ func TestGetStatus(t *testing.T) {
 
 func TestCheckers(t *testing.T) {
 	h := New("service_test", Options{})
-	h.RegisterChecker("checker1", &checker{})
+	h.RegisterChecker("checker1", &mockChecker{})
 
 	s := h.GetStatus()
 
-	if s.HealthCheckers["checker1"] != "OK" {
-		t.Errorf("Expect OK and got %s", s.HealthCheckers["checker1"])
+	if s.HealthCheckers["checker1"].Status != "UP" {
+		t.Errorf("Expect UP and got %s", s.HealthCheckers["checker1"].Status)
 	}
 }
 
 func TestCheckersError(t *testing.T) {
 	h := New("service_test", Options{})
-	h.RegisterChecker("checker1", &checker{err: errors.New("Service unreachable")})
+	h.RegisterChecker("checker1", &mockChecker{err: errors.New("Service unreachable")})
 
 	s := h.GetStatus()
 
-	if s.HealthCheckers["checker1"] != "Service unreachable" {
-		t.Errorf("Expect Service unreachable and got %s", s.HealthCheckers["checker1"])
+	if s.HealthCheckers["checker1"].Error.Error() != "Service unreachable" {
+		t.Errorf("Expect Service unreachable and got %s", s.HealthCheckers["checker1"].Error)
+	}
+}
+
+func TestMultipleCheckers(t *testing.T) {
+	h := New("service_test", Options{checkersTimeout: 1500})
+
+	h.RegisterChecker("checker1", &mockChecker{})
+	h.RegisterChecker("checker2", &mockChecker{sleepTime: 400})
+	h.RegisterChecker("checker3", &mockChecker{sleepTime: 2000})
+	h.RegisterChecker("checker4", &mockChecker{err: errors.New("Error connections to db"), sleepTime: 300})
+
+	s := h.GetStatus()
+
+	results := []string{"UP", "UP", "TIMEOUT", "DOWN"}
+
+	for i, expected := range results {
+		cs := s.HealthCheckers[fmt.Sprintf("checker%d", i+1)].Status
+
+		if cs != expected {
+			t.Errorf("Expect checker%d to be %s and got %s", i+1, expected, cs)
+		}
 	}
 }
 
@@ -81,6 +109,24 @@ func TestServeHTTP(t *testing.T) {
 
 	if s.Service != "service_test" {
 		t.Errorf("Expect service_test and got %s", s.Service)
+	}
+}
+
+func TestServeHTTPNotFound(t *testing.T) {
+	h := New("service_test", Options{})
+
+	req, err := http.NewRequest("PUT", "localhost/health", nil)
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Result().StatusCode != 404 {
+		t.Errorf("Expect 404 and got %d", rec.Result().StatusCode)
 	}
 }
 

@@ -10,18 +10,36 @@ import (
 
 // Status represents application health
 type Status struct {
-	Service         string            `json:"service"`
-	Uptime          string            `json:"up_time"`
-	StartTime       string            `json:"start_time"`
-	MemoryAllocated uint64            `json:"memory_allocated"`
-	IsShuttingDown  bool              `json:"is_shutting_down"`
-	HealthCheckers  map[string]string `json:"health_checkers"`
-	Metadata        map[string]string `json:"metadata"`
+	// Application name
+	Service string `json:"service"`
+	// Uptime of the application
+	Uptime string `json:"up_time"`
+	// StartTime of the application
+	StartTime string `json:"start_time"`
+	// Memory statistics
+	Memory Memory `json:"memory"`
+	// GoRoutines being used
+	GoRoutines int `json:"go_routines"`
+	// IsShuttingDown is active
+	IsShuttingDown bool `json:"is_shutting_down"`
+	// HealthCheckers status
+	HealthCheckers map[string]CheckerResult `json:"health_checkers"`
 }
 
 // Checker checks if the health of a service (database, external service)
 type Checker interface {
+	// Check the dependency status
 	Check() error
+}
+
+// CheckerResult represents the health of the dependencies
+type CheckerResult struct {
+	// Status (UP/DOWN/TIMEOUT)
+	Status string `json:"status"`
+	// Error
+	Error error `json:"error"`
+	// ResponseTime
+	ResponseTime time.Duration `json:"response_time"`
 }
 
 // Health interface
@@ -51,6 +69,7 @@ func New(name string, opt Options) Health {
 		name:       name,
 		mutex:      &sync.Mutex{},
 		startTime:  time.Now(),
+		initMem:    newMemoryStatus(),
 		checkers:   map[string]Checker{},
 		isShutdown: false,
 		options:    opt,
@@ -78,23 +97,38 @@ func (h *health) GetStatus() *Status {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
-	var mem runtime.MemStats
-	runtime.ReadMemStats(&mem)
+	numGoRoutines := runtime.NumGoroutine()
+	memStatus := newMemoryStatus()
+	diffMemStatus := MemoryStatus{
+		HeapAlloc:       memStatus.HeapAlloc - h.initMem.HeapAlloc,
+		TotalAlloc:      memStatus.TotalAlloc - h.initMem.TotalAlloc,
+		ResidentSetSize: memStatus.ResidentSetSize - h.initMem.ResidentSetSize,
+	}
 
 	results := h.checkersAsync()
 
 	return &Status{
-		Service:         h.name,
-		Uptime:          time.Since(h.startTime).String(),
-		StartTime:       h.startTime.Format(time.RFC3339),
-		MemoryAllocated: mem.Alloc,
-		IsShuttingDown:  h.isShutdown,
-		HealthCheckers:  results,
+		Service:    h.name,
+		Uptime:     time.Since(h.startTime).String(),
+		StartTime:  h.startTime.Format(time.RFC3339),
+		GoRoutines: numGoRoutines,
+		Memory: Memory{
+			Initial: h.initMem,
+			Current: memStatus,
+			Diff:    diffMemStatus,
+		},
+		IsShuttingDown: h.isShutdown,
+		HealthCheckers: results,
 	}
 }
 
 // ServeHTTP that returns the health status
 func (h *health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
 	code := http.StatusOK
 	status := h.GetStatus()
 	bytes, _ := json.Marshal(status)
@@ -112,39 +146,44 @@ type health struct {
 	name       string
 	isShutdown bool
 	startTime  time.Time
+	initMem    MemoryStatus
 	checkers   map[string]Checker
 	options    Options
 }
 
-func (h *health) checkersAsync() map[string]string {
+func (h *health) checkersAsync() map[string]CheckerResult {
 	nCheckers := len(h.checkers)
-	results := map[string]string{}
+	results := map[string]CheckerResult{}
 
 	if nCheckers == 0 {
 		return results
 	}
 
-	type checkerResult struct {
+	type result struct {
 		name string
 		err  error
+		time time.Time
 	}
 
-	ch := make(chan checkerResult, len(h.checkers))
+	ch := make(chan result, len(h.checkers))
 
 	for n, c := range h.checkers {
 		go func(name string, c Checker) {
-			ch <- checkerResult{name: name, err: c.Check()}
+			ch <- result{name: name, err: c.Check(), time: time.Now()}
 		}(n, c)
 	}
 
 	for {
 		select {
 		case r := <-ch:
+			resTime := time.Since(r.time)
+			status := "UP"
+
 			if r.err != nil {
-				results[r.name] = r.err.Error()
-			} else {
-				results[r.name] = "OK"
+				status = "DOWN"
 			}
+
+			results[r.name] = CheckerResult{Status: status, Error: r.err, ResponseTime: resTime}
 
 			nCheckers = nCheckers - 1
 
@@ -155,7 +194,10 @@ func (h *health) checkersAsync() map[string]string {
 		case <-time.After(h.options.checkersTimeout):
 			for k := range h.checkers {
 				if _, ok := results[k]; !ok {
-					results[k] = "NOT OK - Timeout"
+					results[k] = CheckerResult{
+						Status:       "TIMEOUT",
+						ResponseTime: h.options.checkersTimeout,
+					}
 				}
 			}
 
