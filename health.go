@@ -8,13 +8,13 @@ import (
 	"time"
 )
 
-// Status represents application health
+// Status of the service
 type Status struct {
-	// Application name
+	// Service name
 	Service string `json:"service"`
-	// Uptime of the application
+	// Uptime of the service (How long service is running)
 	Uptime string `json:"up_time"`
-	// StartTime of the application
+	// StartTime
 	StartTime string `json:"start_time"`
 	// Memory statistics
 	Memory Memory `json:"memory"`
@@ -26,13 +26,13 @@ type Status struct {
 	HealthCheckers map[string]CheckerResult `json:"health_checkers"`
 }
 
-// Checker checks if the health of a service (database, external service)
+// Checker interface checks the health of external services (database, external service)
 type Checker interface {
-	// Check the dependency status
+	// Check service health
 	Check() error
 }
 
-// CheckerResult represents the health of the dependencies
+// CheckerResult struct represent the result of a checker
 type CheckerResult struct {
 	name string
 	// Status (CHECKED/TIMEOUT)
@@ -45,11 +45,11 @@ type CheckerResult struct {
 
 // Health interface
 type Health interface {
-	// GetStatus return the current status of the application
+	// GetStatus return the current status of the service
 	GetStatus() *Status
 	// RegisterChecker register a service to check their health
 	RegisterChecker(name string, check Checker)
-	// ServeHTTP handler for http applications
+	// ServeHTTP handler for http services
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
 	// Shutdown set isShutdown flag meaning the service is shutting down
 	Shutdown()
@@ -93,7 +93,7 @@ func (h *health) Shutdown() {
 	h.isShutdown = true
 }
 
-// GetStatus method returns the current application health status
+// GetStatus method returns the current service health status
 func (h *health) GetStatus() *Status {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()

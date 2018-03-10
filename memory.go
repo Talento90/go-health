@@ -14,9 +14,12 @@ type MemoryStatus struct {
 
 // Memory contains the current, initial and difference statistics
 type Memory struct {
+	// Current statistics
 	Current MemoryStatus `json:"current"`
+	// Inital statistics when Health was created
 	Initial MemoryStatus `json:"initial"`
-	Diff    MemoryStatus `json:"diff"`
+	// Diff statistics between Current - Initial
+	Diff MemoryStatus `json:"diff"`
 }
 
 func newMemoryStatus() MemoryStatus {

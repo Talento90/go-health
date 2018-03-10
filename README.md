@@ -3,26 +3,45 @@
 [![Build Status](https://travis-ci.org/Talento90/health.svg?branch=master)](https://travis-ci.org/Talento90/health) [![Go Report Card](https://goreportcard.com/badge/github.com/Talento90/health)](https://goreportcard.com/report/github.com/Talento90/health) [![codecov](https://codecov.io/gh/Talento90/health/branch/master/graph/badge.svg)](https://codecov.io/gh/Talento90/health)
 [![GoDoc](https://godoc.org/github.com/Talento90/health?status.svg)](https://godoc.org/github.com/Talento90/health)
 
-
-
-Health package simplifies the way you add health check to your applications.
+Health package simplifies the way you add health check to your service.
 
 ## Supported Features
 
-- Get aplication status (Memory, Uptime, etc...)
+- Service [health status](https://godoc.org/github.com/Talento90/health#Status)
+- Graceful Shutdown Pattern
 - Health check external dependencies
-- HTTP Handler out of the box that gives you the health of your application
+- HTTP Handler out of the box that returns the health status
 
 ## How to use
 
-- Create a new instance of health
+```
+    // Create a new instance of Health
+    h := New("service-name", Options{checkersTimeout: time.Second * 1})
 
-- Register external dependencies that your application depends on like external API's, databases and so on...
+    // Register external dependencies	
+    h.RegisterChecker("redis", redisDb)
+	h.RegisterChecker("mongo", mongoDb)
+	h.RegisterChecker("external_api", api)
+	
+    // Get service health status
+    s := h.GetStatus()
 
-- Get explicity the status of your application
+    // Listen interrupt OS signals for graceful shutdown
+    var gracefulShutdown = make(chan os.Signal)
 
-- If your application is an HTTP server you can use the default handler to expose the application health
+	signal.Notify(gracefulShutdown, syscall.SIGTERM)
+	signal.Notify(gracefulShutdown, syscall.SIGINT)
+
+    go func() {
+	    <-gracefulShutdown
+		health.Shutdown()
+
+        // Close Databases gracefully        
+        // Close HttpServer gracefully
+    }
 
 
-## HTTP Handler
-
+    // if you have an http server you can register the default handler
+    // ServeHTTP return 503 (Service Unavailable) if service is shutting down
+    http.HandleFunc("/health", h.ServeHTTP)
+```
