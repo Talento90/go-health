@@ -57,13 +57,14 @@ type Health interface {
 
 // Options of Health instance
 type Options struct {
-	checkersTimeout time.Duration
+	// CheckersTimeout is the timeout value when checking the health of registed checkers
+	CheckersTimeout time.Duration
 }
 
 // New returns a new Health
 func New(name string, opt Options) Health {
-	if opt.checkersTimeout == 0 {
-		opt.checkersTimeout = time.Second
+	if opt.CheckersTimeout == 0 {
+		opt.CheckersTimeout = time.Second
 	}
 
 	return &health{
@@ -181,7 +182,7 @@ func (h *health) checkersAsync() map[string]CheckerResult {
 	ch := make(chan CheckerResult, numCheckers)
 
 	for n, c := range h.checkers {
-		go check(ch, h.options.checkersTimeout, n, c)
+		go check(ch, h.options.CheckersTimeout, n, c)
 	}
 
 	i := numCheckers
