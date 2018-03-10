@@ -58,7 +58,7 @@ func TestCheckersError(t *testing.T) {
 func TestMultipleCheckers(t *testing.T) {
 	results := []string{"CHECKED", "CHECKED", "TIMEOUT", "CHECKED"}
 
-	h := New("service_test", Options{checkersTimeout: time.Second * 1})
+	h := New("service_test", Options{CheckersTimeout: time.Second * 1})
 
 	h.RegisterChecker("checker1", &mockChecker{})
 	h.RegisterChecker("checker2", &mockChecker{sleepTime: time.Millisecond * 300})
