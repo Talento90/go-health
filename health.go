@@ -40,7 +40,7 @@ type CheckerResult struct {
 	// Error
 	Error error `json:"error"`
 	// ResponseTime
-	ResponseTime time.Duration `json:"response_time"`
+	ResponseTime string `json:"response_time"`
 }
 
 // Health interface
@@ -155,18 +155,17 @@ type health struct {
 
 func check(ch chan<- CheckerResult, timeout time.Duration, name string, c Checker) {
 	start := time.Now()
-
-	ch1 := make(chan error)
+	done := make(chan error)
 
 	go func() {
-		ch1 <- c.Check()
+		done <- c.Check()
 	}()
 
 	select {
-	case r := <-ch1:
-		ch <- CheckerResult{name: name, Status: "CHECKED", Error: r, ResponseTime: time.Since(start)}
+	case r := <-done:
+		ch <- CheckerResult{name: name, Status: "CHECKED", Error: r, ResponseTime: time.Since(start).String()}
 	case <-time.After(timeout):
-		ch <- CheckerResult{name: name, Status: "TIMEOUT", ResponseTime: time.Since(start)}
+		ch <- CheckerResult{name: name, Status: "TIMEOUT", ResponseTime: time.Since(start).String()}
 	}
 
 }
