@@ -38,7 +38,7 @@ type CheckerResult struct {
 	// Status (CHECKED/TIMEOUT)
 	Status string `json:"status"`
 	// Error
-	Error error `json:"error"`
+	Error error `json:"error,omitempty"`
 	// ResponseTime
 	ResponseTime string `json:"response_time"`
 }
@@ -101,12 +101,6 @@ func (h *health) GetStatus() *Status {
 
 	numGoRoutines := runtime.NumGoroutine()
 	memStatus := newMemoryStatus()
-	diffMemStatus := MemoryStatus{
-		HeapAlloc:       memStatus.HeapAlloc - h.initMem.HeapAlloc,
-		TotalAlloc:      memStatus.TotalAlloc - h.initMem.TotalAlloc,
-		ResidentSetSize: memStatus.ResidentSetSize - h.initMem.ResidentSetSize,
-	}
-
 	results := h.checkersAsync()
 
 	return &Status{
@@ -117,7 +111,7 @@ func (h *health) GetStatus() *Status {
 		Memory: Memory{
 			Initial: h.initMem,
 			Current: memStatus,
-			Diff:    diffMemStatus,
+			Diff:    diffMemoryStatus(memStatus, h.initMem),
 		},
 		IsShuttingDown: h.isShutdown,
 		HealthCheckers: results,
