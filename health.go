@@ -38,9 +38,9 @@ type CheckerResult struct {
 	// Status (CHECKED/TIMEOUT)
 	Status string `json:"status"`
 	// Error
-	Error error `json:"error"`
+	Error error `json:"error,omitempty"`
 	// ResponseTime
-	ResponseTime time.Duration `json:"response_time"`
+	ResponseTime string `json:"response_time"`
 }
 
 // Health interface
@@ -101,12 +101,6 @@ func (h *health) GetStatus() *Status {
 
 	numGoRoutines := runtime.NumGoroutine()
 	memStatus := newMemoryStatus()
-	diffMemStatus := MemoryStatus{
-		HeapAlloc:       memStatus.HeapAlloc - h.initMem.HeapAlloc,
-		TotalAlloc:      memStatus.TotalAlloc - h.initMem.TotalAlloc,
-		ResidentSetSize: memStatus.ResidentSetSize - h.initMem.ResidentSetSize,
-	}
-
 	results := h.checkersAsync()
 
 	return &Status{
@@ -117,7 +111,7 @@ func (h *health) GetStatus() *Status {
 		Memory: Memory{
 			Initial: h.initMem,
 			Current: memStatus,
-			Diff:    diffMemStatus,
+			Diff:    diffMemoryStatus(memStatus, h.initMem),
 		},
 		IsShuttingDown: h.isShutdown,
 		HealthCheckers: results,
@@ -155,18 +149,17 @@ type health struct {
 
 func check(ch chan<- CheckerResult, timeout time.Duration, name string, c Checker) {
 	start := time.Now()
-
-	ch1 := make(chan error)
+	done := make(chan error)
 
 	go func() {
-		ch1 <- c.Check()
+		done <- c.Check()
 	}()
 
 	select {
-	case r := <-ch1:
-		ch <- CheckerResult{name: name, Status: "CHECKED", Error: r, ResponseTime: time.Since(start)}
+	case r := <-done:
+		ch <- CheckerResult{name: name, Status: "CHECKED", Error: r, ResponseTime: time.Since(start).String()}
 	case <-time.After(timeout):
-		ch <- CheckerResult{name: name, Status: "TIMEOUT", ResponseTime: time.Since(start)}
+		ch <- CheckerResult{name: name, Status: "TIMEOUT", ResponseTime: time.Since(start).String()}
 	}
 
 }
