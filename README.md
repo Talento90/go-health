@@ -22,7 +22,7 @@ go get -u github.com/Talento90/health
 
 ## How to use
 
-```
+```go
     // Create a new instance of Health
     h := New("service-name", Options{checkersTimeout: time.Second * 1})
 
@@ -56,7 +56,7 @@ go get -u github.com/Talento90/health
 
 ## Response Example
 
-```
+```json
 {  
     "service":"imgart",
     "up_time":"14m5.788341028s",
