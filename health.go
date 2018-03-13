@@ -156,8 +156,8 @@ func check(ch chan<- CheckerResult, timeout time.Duration, name string, c Checke
 	}()
 
 	select {
-	case r := <-done:
-		ch <- CheckerResult{name: name, Status: "CHECKED", Error: r, ResponseTime: time.Since(start).String()}
+	case err := <-done:
+		ch <- CheckerResult{name: name, Status: "CHECKED", Error: err, ResponseTime: time.Since(start).String()}
 	case <-time.After(timeout):
 		ch <- CheckerResult{name: name, Status: "TIMEOUT", ResponseTime: time.Since(start).String()}
 	}
@@ -178,17 +178,12 @@ func (h *health) checkersAsync() map[string]CheckerResult {
 		go check(ch, h.options.CheckersTimeout, n, c)
 	}
 
-	i := numCheckers
-
-	for r := range ch {
+	for i := 0; i < numCheckers; i++ {
+		r := <-ch
 		results[r.name] = r
-
-		i = i - 1
-
-		if i == 0 {
-			close(ch)
-		}
 	}
+
+	close(ch)
 
 	return results
 }
