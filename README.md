@@ -5,7 +5,7 @@
 
 Health package simplifies the way you add health check to your service.
 
-For a real application using health please check [ImgArt](https://github.com/Talento90/imgart)
+For a real application using `go-health` please check [ImgArt](https://github.com/Talento90/imgart)
 
 ## Supported Features
 
