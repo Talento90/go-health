@@ -1,7 +1,7 @@
 # health
 
-[![Build Status](https://travis-ci.org/Talento90/health.svg?branch=master)](https://travis-ci.org/Talento90/health) [![Go Report Card](https://goreportcard.com/badge/github.com/Talento90/health)](https://goreportcard.com/report/github.com/Talento90/health) [![codecov](https://codecov.io/gh/Talento90/health/branch/master/graph/badge.svg)](https://codecov.io/gh/Talento90/health)
-[![GoDoc](https://godoc.org/github.com/Talento90/health?status.svg)](https://godoc.org/github.com/Talento90/health)
+[![Build Status](https://travis-ci.org/Talento90/go-health.svg?branch=master)](https://travis-ci.org/Talento90/go-health) [![Go Report Card](https://goreportcard.com/badge/github.com/Talento90/go-health)](https://goreportcard.com/report/github.com/Talento90/go-health) [![codecov](https://codecov.io/gh/Talento90/go-health/branch/master/graph/badge.svg)](https://codecov.io/gh/Talento90/go-health)
+[![GoDoc](https://godoc.org/github.com/Talento90/go-health?status.svg)](https://godoc.org/github.com/Talento90/go-health)
 
 Health package simplifies the way you add health check to your service.
 
@@ -9,7 +9,7 @@ For a real application using health please check [ImgArt](https://github.com/Tal
 
 ## Supported Features
 
-- Service [health status](https://godoc.org/github.com/Talento90/health#Status)
+- Service [health status](https://godoc.org/github.com/Talento90/go-health#Status)
 - Graceful Shutdown Pattern
 - Health check external dependencies
 - HTTP Handler out of the box that returns the health status
@@ -42,7 +42,7 @@ go get -u github.com/Talento90/go-health
 
     go func() {
     <-gracefulShutdown
-    health.Shutdown()
+        health.Shutdown()
 
         // Close Databases gracefully
         // Close HttpServer gracefully
