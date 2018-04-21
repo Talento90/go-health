@@ -26,7 +26,7 @@ type DiffMemoryStatus struct {
 type Memory struct {
 	// Current statistics
 	Current MemoryStatus `json:"current"`
-	// Inital statistics when Health was created
+	// Initial statistics when Health was created
 	Initial MemoryStatus `json:"initial"`
 	// Diff statistics between Current - Initial
 	Diff DiffMemoryStatus `json:"diff"`

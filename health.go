@@ -57,7 +57,7 @@ type Health interface {
 
 // Options of Health instance
 type Options struct {
-	// CheckersTimeout is the timeout value when checking the health of registed checkers
+	// CheckersTimeout is the timeout value when checking the health of registered checkers
 	CheckersTimeout time.Duration
 }
 
