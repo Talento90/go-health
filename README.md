@@ -24,7 +24,7 @@ go get -u github.com/Talento90/go-health
 
 ```go
     // Create a new instance of Health
-    h := New("service-name", Options{checkersTimeout: time.Second * 1})
+    h := New("service-name", Options{CheckersTimeout: time.Second * 1})
 
     // Register external dependencies
     h.RegisterChecker("redis", redisDb)
@@ -42,7 +42,7 @@ go get -u github.com/Talento90/go-health
 
     go func() {
     <-gracefulShutdown
-        health.Shutdown()
+        h.Shutdown()
 
         // Close Databases gracefully
         // Close HttpServer gracefully
@@ -57,7 +57,7 @@ go get -u github.com/Talento90/go-health
 ## Response Example
 
 ```json
-{  
+{
     "service":"imgart",
     "up_time":"14m5.788341028s",
     "start_time":"2018-03-11T17:02:33Z",
