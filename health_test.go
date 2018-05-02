@@ -149,3 +149,22 @@ func TestShutdown(t *testing.T) {
 		t.Errorf("Expect %d and got %d", http.StatusServiceUnavailable, rec.Result().StatusCode)
 	}
 }
+
+func TestServeHTTPCheckerFailure(t *testing.T) {
+	h := New("service_test", Options{})
+	h.RegisterChecker("checker1", &mockChecker{err: errors.New("Service unreachable")})
+
+	req, err := http.NewRequest("GET", "localhost/health", nil)
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Result().StatusCode != 503 {
+		t.Errorf("Expect 503 and got %d", rec.Result().StatusCode)
+	}
+}
