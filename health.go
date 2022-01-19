@@ -133,6 +133,13 @@ func (h *health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		code = http.StatusServiceUnavailable
 	}
 
+	for _, checkResult := range status.HealthCheckers {
+		if checkResult.Error != nil {
+			code = http.StatusServiceUnavailable
+			break
+		}
+	}
+
 	w.WriteHeader(code)
 	w.Write(bytes)
 }
